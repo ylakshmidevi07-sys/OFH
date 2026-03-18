@@ -1,0 +1,1 @@
+DROP POLICY "Authenticated users can update orders" ON public.orders;

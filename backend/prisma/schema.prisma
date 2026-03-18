@@ -1,0 +1,462 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum HomepageSectionType {
+  HERO
+  FEATURED_PRODUCTS
+  BANNER
+  CATEGORIES
+  NEWSLETTER
+  CUSTOM
+}
+
+enum BannerPlacement {
+  HOMEPAGE
+  CATEGORY_PAGE
+  CHECKOUT
+  SIDEBAR
+}
+
+enum PricingRuleType {
+  PERCENTAGE
+  FIXED
+  TIERED
+}
+
+enum PricingTargetType {
+  PRODUCT
+  CATEGORY
+  CART
+}
+
+enum CampaignType {
+  PROMOTION
+  ABANDONED_CART
+  ANNOUNCEMENT
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String
+  firstName    String?
+  lastName     String?
+  phone        String?
+  role         Role     @default(USER)
+  isActive     Boolean  @default(true)
+  refreshToken String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  cart                Cart?
+  orders              Order[]
+  reviews             Review[]
+  addresses           Address[]
+  savedPaymentMethods SavedPaymentMethod[]
+  activityLogs        UserActivityLog[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Category {
+  id           String        @id @default(uuid())
+  name         String
+  slug         String        @unique
+  description  String?
+  image        String?
+  parentId     String?
+  parent       Category?     @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children     Category[]    @relation("CategoryHierarchy")
+  products     Product[]
+  pricingRules PricingRule[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([slug])
+  @@index([parentId])
+  @@map("categories")
+}
+
+model Product {
+  id             String   @id @default(uuid())
+  name           String
+  slug           String   @unique
+  description    String
+  details        String[]
+  price          Float
+  compareAtPrice Float?
+  unit           String   @default("kg")
+  images         String[]
+  sku            String?
+  tags           String[] @default([])
+  isNew          Boolean  @default(false)
+  isFeatured     Boolean  @default(false)
+  isTrending     Boolean  @default(false)
+  isHidden       Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  categoryId     String
+  category       Category @relation(fields: [categoryId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  inventory       Inventory?
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+  reviews         Review[]
+  featuredProduct FeaturedProduct?
+  pricingRules    PricingRule[]
+
+  @@index([slug])
+  @@index([categoryId])
+  @@index([price])
+  @@index([isActive])
+  @@index([isHidden])
+  @@index([isFeatured])
+  @@map("products")
+}
+
+model Inventory {
+  id                String  @id @default(uuid())
+  productId         String  @unique
+  product           Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stock             Int     @default(0)
+  reservedStock     Int     @default(0)
+  lowStockThreshold Int     @default(10)
+
+  @@index([productId])
+  @@map("inventory")
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId])
+  @@map("carts")
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  cartId    String
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+
+  @@unique([cartId, productId])
+  @@index([cartId])
+  @@index([productId])
+  @@map("cart_items")
+}
+
+model Order {
+  id                String        @id @default(uuid())
+  orderNumber       String        @unique
+  userId            String
+  user              User          @relation(fields: [userId], references: [id])
+  items             OrderItem[]
+  subtotal          Float
+  shipping          Float         @default(0)
+  tax               Float         @default(0)
+  discount          Float         @default(0)
+  totalAmount       Float
+  status            OrderStatus   @default(PENDING)
+  paymentStatus     PaymentStatus @default(PENDING)
+  shippingAddress   Json?
+  promoCode         String?
+  estimatedDelivery DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  payment Payment?
+
+  @@index([userId])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+  unit      String  @default("kg")
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  orderId         String        @unique
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  paymentProvider String
+  transactionId   String?
+  paymentStatus   PaymentStatus @default(PENDING)
+  amount          Float
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([transactionId])
+  @@map("payments")
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int
+  comment   String?
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, userId])
+  @@index([productId])
+  @@index([userId])
+  @@index([rating])
+  @@map("reviews")
+}
+
+model Address {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String   @default("Home")
+  firstName String
+  lastName  String
+  address   String
+  city      String
+  state     String
+  zipCode   String
+  phone     String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+model SavedPaymentMethod {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String   @default("card")
+  cardLastFour String?
+  cardBrand    String?
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@map("saved_payment_methods")
+}
+
+model UserActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType String
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("user_activity_logs")
+}
+
+model PromoCode {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  discountType  String    @default("percentage")
+  discountValue Float
+  minOrderValue Float?
+  maxDiscount   Float?
+  usageLimit    Int?
+  usedCount     Int       @default(0)
+  description   String
+  isActive      Boolean   @default(true)
+  startDate     DateTime  @default(now())
+  endDate       DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+  @@map("promo_codes")
+}
+
+model FeaturedProduct {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  position  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId])
+  @@index([isActive])
+  @@index([position])
+  @@map("featured_products")
+}
+
+// ── Enterprise Models ────────────────────────────────────────────────
+
+model HomepageSection {
+  id        String              @id @default(uuid())
+  type      HomepageSectionType
+  title     String?
+  subtitle  String?
+  position  Int                 @default(0)
+  isActive  Boolean             @default(true)
+  config    Json?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@index([isActive])
+  @@index([position])
+  @@map("homepage_sections")
+}
+
+model Banner {
+  id        String          @id @default(uuid())
+  title     String
+  subtitle  String?
+  imageUrl  String
+  linkUrl   String?
+  placement BannerPlacement @default(HOMEPAGE)
+  position  Int             @default(0)
+  startDate DateTime?
+  endDate   DateTime?
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([placement])
+  @@index([isActive])
+  @@map("banners")
+}
+
+model PricingRule {
+  id          String            @id @default(uuid())
+  name        String
+  type        PricingRuleType
+  targetType  PricingTargetType
+  targetId    String?
+  productId   String?
+  product     Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  categoryId  String?
+  category    Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  value       Float
+  minQuantity Int?
+  priority    Int               @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([targetType])
+  @@index([isActive])
+  @@index([priority])
+  @@map("pricing_rules")
+}
+
+model EmailCampaign {
+  id           String         @id @default(uuid())
+  name         String
+  type         CampaignType
+  subject      String?
+  htmlContent  String?
+  templateId   String?
+  triggerEvent String?
+  isActive     Boolean        @default(true)
+  status       CampaignStatus @default(DRAFT)
+  scheduledAt  DateTime?
+  sentAt       DateTime?
+  sentCount    Int            @default(0)
+  openCount    Int            @default(0)
+  clickCount   Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([isActive])
+  @@map("email_campaigns")
+}
+
+model StoreSettings {
+  id               String   @id @default(uuid())
+  storeName        String   @default("OFH - The Organic Foods House")
+  currency         String   @default("INR")
+  taxRate          Float    @default(5.0)
+  shippingBaseCost Float    @default(50.0)
+  freeShippingMin  Float    @default(500.0)
+  supportEmail     String   @default("support@ofh.com")
+  supportPhone     String?
+  themeConfig      Json?
+  metaTitle        String?
+  metaDescription  String?
+  socialLinks      Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("store_settings")
+}

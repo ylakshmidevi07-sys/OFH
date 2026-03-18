@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Backend specific
+backend/node_modules/
+backend/dist/
+backend/logs/
+backend/.env
+
+# Prisma
+backend/prisma/migrations/
+
+# Coverage
+coverage/
+
