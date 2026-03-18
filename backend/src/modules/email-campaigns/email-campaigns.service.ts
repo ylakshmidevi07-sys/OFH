@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, Optional } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -11,7 +11,7 @@ export class EmailCampaignsService {
 
   constructor(
     private prisma: PrismaService,
-    @InjectQueue('email-campaigns') private readonly campaignQueue: Queue,
+    @Optional() @InjectQueue('email-campaigns') private readonly campaignQueue?: Queue,
   ) {}
 
   async findAll() {
@@ -75,7 +75,7 @@ export class EmailCampaignsService {
     });
 
     // Enqueue the campaign send job
-    await this.campaignQueue.add('send-campaign', {
+    await this.campaignQueue?.add('send-campaign', {
       campaignId: id,
       subject: campaign.subject,
       htmlContent: campaign.htmlContent,
@@ -99,7 +99,7 @@ export class EmailCampaignsService {
     });
 
     for (const campaign of campaigns) {
-      await this.campaignQueue.add('send-triggered-campaign', {
+      await this.campaignQueue?.add('send-triggered-campaign', {
         campaignId: campaign.id,
         triggerData: data,
       });

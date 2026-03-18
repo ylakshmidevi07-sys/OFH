@@ -21,8 +21,8 @@ export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
-    @InjectQueue('order-processing') private readonly orderQueue: Queue,
-    @InjectQueue('email-notifications') private readonly emailQueue: Queue,
+    @Optional() @InjectQueue('order-processing') private readonly orderQueue?: Queue,
+    @Optional() @InjectQueue('email-notifications') private readonly emailQueue?: Queue,
     @Optional() private readonly pricingRulesService?: PricingRulesService,
     @Optional() private readonly storeSettingsService?: StoreSettingsService,
   ) {}
@@ -145,9 +145,9 @@ export class OrdersService {
       return created;
     });
 
-    // Enqueue background jobs via BullMQ
-    await this.orderQueue.add('process-order', { orderId: order.id, userId });
-    await this.emailQueue.add('order-confirmation', { orderNumber: order.orderNumber, userId });
+    // Enqueue background jobs via BullMQ (skipped if Redis unavailable)
+    await this.orderQueue?.add('process-order', { orderId: order.id, userId });
+    await this.emailQueue?.add('order-confirmation', { orderNumber: order.orderNumber, userId });
 
     this.logger.log(`Order created: ${order.orderNumber}`);
     await this.invalidateAdminCache();
@@ -237,8 +237,8 @@ export class OrdersService {
       }
     }
 
-    // Enqueue status-update notification
-    await this.emailQueue.add('order-status-update', { orderId: order.id, status: dto.status });
+    // Enqueue status-update notification (skipped if Redis unavailable)
+    await this.emailQueue?.add('order-status-update', { orderId: order.id, status: dto.status });
 
     await this.invalidateAdminCache();
     return updated;
