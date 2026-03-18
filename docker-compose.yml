@@ -62,6 +62,8 @@ services:
       THROTTLE_TTL: 60000
       THROTTLE_LIMIT: 100
       LOG_LEVEL: info
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ofh.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin@OFH2026}
     depends_on:
       postgres:
         condition: service_healthy

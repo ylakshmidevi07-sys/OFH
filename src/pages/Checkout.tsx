@@ -12,7 +12,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { ordersApi } from "@/api/orders.api";
-import { useCreateOrder } from "@/hooks/queries";
+import { useCreateOrder, useAddresses } from "@/hooks/queries";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import PageTransition from "@/components/PageTransition";
@@ -61,6 +61,7 @@ const Checkout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const createOrderMutation = useCreateOrder();
+  const { data: rawAddresses, isLoading: isLoadingAddresses } = useAddresses();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completedOrderNumber, setCompletedOrderNumber] = useState<string | null>(null);
   const [orderComplete, setOrderComplete] = useState(false);
@@ -70,9 +71,7 @@ const Checkout = () => {
   const [promoError, setPromoError] = useState("");
   const [isValidatingPromo, setIsValidatingPromo] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "cod" | "upi">("card");
-  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>("new");
-  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [gstin, setGstin] = useState("");
   const [gstinError, setGstinError] = useState("");
   const [formData, setFormData] = useState({
@@ -86,12 +85,29 @@ const Checkout = () => {
     zipCode: "",
   });
 
-  // Saved addresses will be enabled once NestJS address endpoints are available.
+  // Map backend addresses to SavedAddress shape
+  const savedAddresses: SavedAddress[] = (rawAddresses || []).map((a) => ({
+    id: a.id,
+    label: a.label,
+    first_name: a.firstName,
+    last_name: a.lastName,
+    address: a.address,
+    city: a.city,
+    state: a.state,
+    zip_code: a.zipCode,
+    phone: a.phone ?? null,
+    is_default: a.isDefault,
+  }));
+
+  // Auto-select the default address when addresses load
   useEffect(() => {
-    setSavedAddresses([]);
-    setSelectedAddressId("new");
-    setIsLoadingAddresses(false);
-  }, [user]);
+    if (savedAddresses.length > 0 && selectedAddressId === "new") {
+      const defaultAddr = savedAddresses.find((a) => a.is_default) || savedAddresses[0];
+      setSelectedAddressId(defaultAddr.id);
+      applyAddress(defaultAddr);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawAddresses]);
 
   // Pre-fill email if logged in
   useEffect(() => {

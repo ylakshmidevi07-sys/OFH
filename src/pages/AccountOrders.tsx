@@ -28,12 +28,17 @@ interface Order {
   order_number: string;
   items: OrderItem[];
   total: number;
-  status: "processing" | "confirmed" | "shipped" | "delivered" | "cancelled";
+  status: "pending" | "processing" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded";
   payment_method: "card" | "cod";
   created_at: string;
 }
 
 const statusConfig: Record<Order["status"], { label: string; icon: React.ElementType; className: string }> = {
+  pending: {
+    label: "Pending",
+    icon: Clock,
+    className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
+  },
   processing: {
     label: "Processing",
     icon: Clock,
@@ -58,6 +63,11 @@ const statusConfig: Record<Order["status"], { label: string; icon: React.Element
     label: "Cancelled",
     icon: XCircle,
     className: "bg-destructive/10 text-destructive border-destructive/20",
+  },
+  refunded: {
+    label: "Refunded",
+    icon: XCircle,
+    className: "bg-gray-500/10 text-gray-600 border-gray-500/20",
   },
 };
 
@@ -158,7 +168,8 @@ const AccountOrders = () => {
           ) : (
             <div className="space-y-4">
               {orders.map((order, index) => {
-                const StatusIcon = statusConfig[order.status].icon;
+                const statusInfo = statusConfig[order.status] ?? statusConfig["processing"];
+                const StatusIcon = statusInfo.icon;
                 return (
                   <motion.div
                     key={order.id}
@@ -227,10 +238,10 @@ const AccountOrders = () => {
                           </Button>
                           <Badge
                             variant="outline"
-                            className={`${statusConfig[order.status].className} gap-1.5`}
+                            className={`${statusInfo.className} gap-1.5`}
                           >
                             <StatusIcon className="h-3.5 w-3.5" />
-                            {statusConfig[order.status].label}
+                            {statusInfo.label}
                           </Badge>
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </div>

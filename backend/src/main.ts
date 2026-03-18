@@ -24,9 +24,14 @@ async function bootstrap() {
   app.use(helmet());
   app.use(cookieParser());
 
-  // CORS
+  // CORS — support comma-separated origins or a single origin
+  const corsOriginEnv = configService.get<string>('CORS_ORIGIN', 'http://localhost:8080');
+  const corsOrigins = corsOriginEnv.includes(',')
+    ? corsOriginEnv.split(',').map((o) => o.trim())
+    : corsOriginEnv;
+
   app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN', 'http://localhost:8080'),
+    origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

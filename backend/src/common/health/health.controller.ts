@@ -1,6 +1,10 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
+import { JwtAuthGuard } from '../../modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../guards/roles.guard';
+import { Roles } from '../decorators/roles.decorator';
+import { Role } from '@prisma/client';
 
 @Controller()
 export class HealthController {
@@ -49,6 +53,8 @@ export class HealthController {
     };
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @Get('metrics')
   async metrics() {
     const mem = process.memoryUsage();

@@ -151,8 +151,8 @@ npm run dev
 
 | Role  | Email          | Password     |
 |-------|----------------|--------------|
-| Admin | admin@ofh.com  | admin123456  |
-| User  | user@ofh.com   | user123456   |
+| Admin | admin@ofh.com  | admin@OFH2026  |
+| User  | user@ofh.com   | user@OFH2026   |
 
 ---
 
