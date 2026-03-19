@@ -61,12 +61,32 @@ import EnterpriseEmailCampaigns from "./pages/enterprise/admin/EmailCampaignsMan
 import EnterpriseStoreSettings from "./pages/enterprise/admin/StoreSettingsPage";
 import EnterpriseObservability from "./pages/enterprise/admin/ObservabilityDashboard";
 
+// Determine whether a React Query error should be retried.
+// Skip retrying permanent client-side errors (4xx) except request timeout (408)
+// and rate-limiting (429) which are transient by nature.
+const shouldRetryQuery = (failureCount: number, error: unknown): boolean => {
+  if (failureCount >= 3) return false;
+  const status = (error as { response?: { status?: number } })?.response?.status;
+  if (status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+    return false;
+  }
+  return true;
+};
+
+// Exponential backoff: 1 s → 2 s → 4 s (capped at 30 s)
+const retryDelay = (attempt: number) =>
+  Math.min(1000 * Math.pow(2, attempt), 30_000);
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 2 * 60 * 1000,  // 2 min default stale time
-      retry: 1,
+      retry: shouldRetryQuery,
+      retryDelay,
       refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 0,
     },
   },
 });
