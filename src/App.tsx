@@ -8,6 +8,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { AnimatePresence } from "framer-motion";
 import { ThemeProvider } from "next-themes";
 import { useAuthStore } from "@/stores/authStore";
+import { AxiosError } from "axios";
 import CartDrawer from "@/components/CartDrawer";
 import WishlistDrawer from "@/components/WishlistDrawer";
 import MobileLayout from "@/components/MobileLayout";
@@ -61,11 +62,28 @@ import EnterpriseEmailCampaigns from "./pages/enterprise/admin/EmailCampaignsMan
 import EnterpriseStoreSettings from "./pages/enterprise/admin/StoreSettingsPage";
 import EnterpriseObservability from "./pages/enterprise/admin/ObservabilityDashboard";
 
+const QUERY_RETRY_MAX = 3;
+const QUERY_RETRY_BASE_DELAY_MS = 1000;
+
+const shouldRetryQuery = (failureCount: number, error: unknown): boolean => {
+  if (failureCount >= QUERY_RETRY_MAX) return false;
+  if (error instanceof AxiosError && error.response) {
+    const status = error.response.status;
+    // Never retry client errors (4xx) — they won't resolve on their own
+    if (status >= 400 && status <= 499) return false;
+  }
+  return true;
+};
+
+const queryRetryDelay = (attemptIndex: number): number =>
+  QUERY_RETRY_BASE_DELAY_MS * Math.pow(2, attemptIndex);
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 2 * 60 * 1000,  // 2 min default stale time
-      retry: 1,
+      retry: shouldRetryQuery,
+      retryDelay: queryRetryDelay,
       refetchOnWindowFocus: false,
     },
   },

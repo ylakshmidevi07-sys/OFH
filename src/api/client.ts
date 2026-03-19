@@ -2,6 +2,26 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
+const RETRY_MAX = 3;
+const RETRY_BASE_DELAY_MS = 500;
+const SAFE_METHODS = new Set(['get', 'head', 'options']);
+
+const isTransientError = (error: AxiosError): boolean => {
+  if (!error.response) {
+    // Network error or timeout — always transient
+    return true;
+  }
+  const status = error.response.status;
+  return status >= 500 && status <= 599;
+};
+
+const isSafeMethod = (config: InternalAxiosRequestConfig): boolean => {
+  return SAFE_METHODS.has((config.method ?? 'get').toLowerCase());
+};
+
+const exponentialDelay = (attempt: number): number =>
+  RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,
@@ -22,7 +42,7 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// Response interceptor: handle 401 + token refresh
+// Response interceptor: handle 401 + token refresh, and transient-error retries
 let isRefreshing = false;
 let failedQueue: { resolve: (v: any) => void; reject: (e: any) => void }[] = [];
 
@@ -37,10 +57,15 @@ const processQueue = (error: any, token: string | null = null) => {
   failedQueue = [];
 };
 
+type RetryableConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+  _retryCount?: number;
+};
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as RetryableConfig;
 
     // Don't retry refresh or login requests
     if (
@@ -96,6 +121,21 @@ apiClient.interceptors.response.use(
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
+      }
+    }
+
+    // Retry transient failures (5xx, network errors, timeouts) for safe HTTP methods
+    if (
+      originalRequest &&
+      isSafeMethod(originalRequest) &&
+      isTransientError(error)
+    ) {
+      const retryCount = originalRequest._retryCount ?? 0;
+      if (retryCount < RETRY_MAX) {
+        originalRequest._retryCount = retryCount + 1;
+        const delay = exponentialDelay(retryCount);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return apiClient(originalRequest);
       }
     }
 
